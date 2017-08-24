@@ -8,10 +8,31 @@ from geometry_msgs.msg import PoseArray
 from std_msgs.msg import UInt32
 import PyKDL
 from tf_conversions import posemath
+from tf import transformations
 from dvrk import psm
 from time import time
 
-def NumpyToKdl
+def npToKdlFrame(npFrame):
+	quat = transformations.quaternion_from_matrix(npFrame)
+	rot = PyKDL.Rotation.Quaternion(quat[0],quat[1],quat[2],quat[3])
+	pos = PyKDL.Vector(npFrame[0,3],npFrame[1,3],npFrame[2,3])
+	kdlFrame = PyKDL.Frame.Identity()
+	kdlFrame.M = rot
+	kdlFrame.p = pos
+	return kdlFrame
+
+def kdlToNpFrame(kdlFrame):
+	npFrame = np.empty((4,4));
+	v = kdlFrame.M.UnitX()
+	npFrame[0,0:3] = [v.x(), v.y(), v.z()]
+	v = kdlFrame.M.UnitY()
+	npFrame[1,0:3] = [v.x(), v.y(), v.z()]
+	v = kdlFrame.M.UnitZ()
+	npFrame[2,0:3] = [v.x(), v.y(), v.z()]
+	npFrame[0:3,3] = [kdlFrame.p.x(),kdlFrame.p.y(),kdlFrame.p.z()]
+	npFrame[0:3,0:3] = npFrame[0:3,0:3] / np.linalg.norm(npFrame[0:3,0:3], axis=-1)[:, np.newaxis]
+	npFrame[3,:] = [0, 0, 0, 1]
+	return npFrame;
 
 class ContinuousPalpation:
     def __init__(self, psmName, forceTopic, bufferSize = 50):
