@@ -12,6 +12,9 @@ from tf import transformations
 from dvrk import psm
 from time import time
 
+# DEBUG TOOLS
+import ipdb
+
 def npToKdlFrame(npFrame):
 	quat = transformations.quaternion_from_matrix(npFrame)
 	rot = PyKDL.Rotation.Quaternion(quat[0],quat[1],quat[2],quat[3])
@@ -67,7 +70,7 @@ class ContinuousPalpation:
 
         # TODO make these values not hard coded
         self.rate = rospy.Rate(1000) # 1000hz
-        self.fBias = np.array((0 0 1)) # Newtons
+        self.fBias = np.array((0, 0, 1)) # Newtons
         self.period = .5 # Seconds
         self.amplitude = .5 # Newtons
 
@@ -79,6 +82,7 @@ class ContinuousPalpation:
             try:
                 nextPose = self.trajectory[0]
             except IndexError:
+                # If no trajectory do nothing
                 continue
             currentPose = self.robot.get_current_position()
             xDotMotion = self.resolvedRates(currentPose, nextPose)
