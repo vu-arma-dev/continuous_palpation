@@ -108,7 +108,7 @@ class ContinuousPalpation:
         # TODO write resolved rates
         xDotMotion = np.empty((6,1))
         return xDotMotion
-
+	
     def computeFRef(self):
         # TODO compute fRef
         mag = np.sin(self.period*time() / (2*np.PI)) * self.amplitude
@@ -126,6 +126,14 @@ class ContinuousPalpation:
         # TODO implement hybrid force position control
         xDot = xDotForce + xDotMotion
         return xDot * (1.0/self.rate) + poseCur
+
+    def checkEqual(self, current, desired):
+	# TODO check equality before popping
+	try:
+	    self.trajectory.popleft()
+	except IndexError:
+	    # TODO handle end of function
+            print "no more trajectories"
 
 if __name__ == '__main__':
     ContinuousPalpation(psmName = 'PSM1', forceTopic = '/atinetft/raw_wrench')
