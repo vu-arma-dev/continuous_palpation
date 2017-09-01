@@ -98,10 +98,12 @@ class ContinuousPalpation:
                                    data.wrench.force.y,
                                    data.wrench.force.z))
         self.f_buffer.append(f_current)
-    def averageForceBuffer(self):
-        # TODO - need to average the force buffer dequeue
-        f_average = PyKDL.Vector(0.0,0.0,0.0)
+    
+    def getAverageForce(self):
+	npAvg = np.mean(f_buffer,0)
+        fAverage = PyKDL.Vector(npAvg[0],npAvg[1],npAvg[2])
         return f_average
+    
     def poseCB(self, data):
         self.trajectory.append(posemath.fromMsg(data.pose))
     
