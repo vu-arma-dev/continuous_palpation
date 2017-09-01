@@ -179,7 +179,7 @@ class ContinuousPalpation:
         else: 
             # under this condition, 
             # need to compute the force control direction based on f_buffer
-            force_Ctrl_Dir = self.averageForceBuffer()
+            force_Ctrl_Dir = self.getAverageForce()
         force_Ctrl_Dir.Normalize()
         # compute the desired force magnitude  
         f_ref_mag = self.computeFRef()
