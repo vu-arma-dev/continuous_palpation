@@ -100,6 +100,8 @@ class ContinuousPalpation:
         self.f_buffer.append(f_current)
     
     def getAverageForce(self):
+	if len(f_buffer) == 0:
+	    return PyKDL.Vector(0.0,0.0,0.0)
 	npAvg = np.mean(f_buffer,0)
         fAverage = PyKDL.Vector(npAvg[0],npAvg[1],npAvg[2])
         return f_average
