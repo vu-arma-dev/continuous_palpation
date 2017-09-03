@@ -11,6 +11,7 @@ from tf_conversions import posemath
 from tf import transformations
 from dvrk import psm
 from time import time
+import copy
 
 # DEBUG TOOLS
 import ipdb
@@ -62,10 +63,10 @@ class ContinuousPalpation:
             'noiseThresh': 0.08 # Newtown, a threshold value to cancel the noise
         }
         self.resolvedRatesConfig = \
-        {   'velMin': 5.0/1000,
-            'velMax': 50.0/1000,
-            'angVelMin': 3.0/180.0*3.14,
-            'angVelMax': 60.0/180.0*3.14,
+        {   'velMin': 2.0/1000,
+            'velMax': 20.0/1000,
+            'angVelMin': 2.0/180.0*3.14,
+            'angVelMax': 15.0/180.0*3.14,
             'tolPos': 0.5/1000, # positional tolerance
             'tolRot': 1.0/180*3.14, # rotational tolerance
             'velRatio': 10.0, # the ratio of max velocity error radius to tolarance radius, this value >1
@@ -89,16 +90,15 @@ class ContinuousPalpation:
             currentPose = self.robot.get_current_position()
             desiredPose = self.trajectory[0]
             if noPoseCommanded:
-                lastCommandedPose = currentPose
-            else:
-                lastCommandedPose = poseToMove
+                poseToMove = copy.copy(currentPose)
+                noPoseCommanded = False
             # compute the desired twist "x_dot" from motion command
             xDotMotion = self.resolvedRates(currentPose,desiredPose) # xDotMotion is type [PyKDL.Twist]
             # compute the desired twist "x_dot" from force command
             forceCtrlDir = self.updateForceControlDir()
             xDotForce = self.forceAdmittanceControl(forceCtrlDir) # xDotForce is type [PyKDL.Twist]
             [poseToMove,positionReached,orientationReached] = \
-            self.hybridPosForce(xDotMotion,xDotForce,lastCommandedPose,forceCtrlDir)
+            self.hybridPosForce(xDotMotion,xDotForce,poseToMove,forceCtrlDir)
             self.robot.move(poseToMove, interpolate = False)
             self.checkGoalReached(positionReached,orientationReached)
             self.trajStatusPub.publish(len(self.trajectory))
@@ -236,6 +236,7 @@ class ContinuousPalpation:
         if (positionReached and orientationReached):
             try:
                 self.trajectory.popleft()
+                print "target reached"
             except IndexError:
                 # TODO handle end of function
                     print "no more trajectories"
