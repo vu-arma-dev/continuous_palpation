@@ -20,7 +20,7 @@ class ContinuousPalpation:
 
         rospy.init_node('continuous_palpation', anonymous=True)
         
-        self.f_buffer = deque([], bufferSize)
+        self.fBuffer = deque([], bufferSize)
         self.fCurrent = PyKDL.Vector(0.0,0.0,0.0)
 
         self.trajectory = deque([])
@@ -51,14 +51,15 @@ class ContinuousPalpation:
         self.rate = rospy.Rate(1000) # 1000hz
         self.forceProfile = \
         {   'period':0.5, # Seconds
-            'amplitude': 0.0, # Newtons
-            'fBiasMag': 0.7, # Newtons, biased force magnitude
+            'amplitude': 0.0, # Newtons, default = 0.5
+            'fBiasMag': 0.0, # Newtons, biased force magnitude, default=0.7
             'magnitudeMode': 'bias', # 'bias' or 'sine', or 'sine bias'
-            'controlDir':'default', # 'default' or 'surf normal'
-            'defaultDir':[0.0,0.0,1.0],
+            'controlDir':'surf normal', # 'default' or 'surf normal'
+            'defaultDir':[0.0,0.0,0.0], # default = [0.0,0.0,1.0]
             'admittanceGains':[ 100.0/1000,\
                                 100.0/1000,\
-                                100.0/1000] # force admittance gains, (meter/sec)/Newton
+                                100.0/1000], # force admittance gains, (meter/sec)/Newton
+            'noiseThresh': 0.08 # Newtown, a threshold value to cancel the noise
         }
         self.resolvedRatesConfig = \
         {   'velMin': 5.0/1000,
@@ -77,9 +78,9 @@ class ContinuousPalpation:
 
     def run(self):
         nextPose = PyKDL.Frame.Identity()
+        noPoseCommanded = True
         while not rospy.is_shutdown():
             try:
-                ipdb.set_trace()
                 nextPose = self.trajectory[0]
             except IndexError:
                 # If no trajectory do nothing
@@ -87,13 +88,19 @@ class ContinuousPalpation:
             # get current and desired robot pose (desired is the top of queue)
             currentPose = self.robot.get_current_position()
             desiredPose = self.trajectory[0]
+            if noPoseCommanded:
+                lastCommandedPose = currentPose
+            else:
+                lastCommandedPose = poseToMove
             # compute the desired twist "x_dot" from motion command
-            xDeltaMotion = self.resolvedRates(currentPose,desiredPose) # xDeltaMotion is type [PyKDL.Twist]
+            xDotMotion = self.resolvedRates(currentPose,desiredPose) # xDotMotion is type [PyKDL.Twist]
             # compute the desired twist "x_dot" from force command
             forceCtrlDir = self.updateForceControlDir()
-            xDeltaForce = self.forceAdmittanceControl(forceCtrlDir) # xDeltaForce is type [PyKDL.Twist]
-            poseToMove = self.hybridPosForce(xDeltaMotion,xDeltaForce,currentPose,forceCtrlDir)
-            # self.robot.move(desiredPose, interpolate = False)
+            xDotForce = self.forceAdmittanceControl(forceCtrlDir) # xDotForce is type [PyKDL.Twist]
+            [poseToMove,positionReached,orientationReached] = \
+            self.hybridPosForce(xDotMotion,xDotForce,lastCommandedPose,forceCtrlDir)
+            self.robot.move(poseToMove, interpolate = False)
+            self.checkGoalReached(positionReached,orientationReached)
             self.trajStatusPub.publish(len(self.trajectory))
             self.rate.sleep()
 
@@ -132,7 +139,7 @@ class ContinuousPalpation:
             else:
                 velMax = self.resolvedRatesConfig['velMax']
                 velMin = self.resolvedRatesConfig['velMin']
-                velMag = velMin + \
+                velMag = velMin + (posErrNorm - tolPosition) * \
                 (velMax - velMin)/(tolPosition*(lambdaVel-1))
         else:
             velMag = 0.0
@@ -140,38 +147,45 @@ class ContinuousPalpation:
         if rotErrNorm>self.resolvedRatesConfig['tolRot']:
             tolRotation = self.resolvedRatesConfig['tolRot']
             lambdaRot = self.resolvedRatesConfig['rotRatio']
-            if posErrNorm>(lambdaRot*tolRotation):
+            if rotErrNorm>(lambdaRot*tolRotation):
                 angVelMag = self.resolvedRatesConfig['angVelMax']
             else:
                 angVelMax = self.resolvedRatesConfig['angVelMax']
                 angVelMin = self.resolvedRatesConfig['angVelMin']
-                angVelMag = angVelMin + \
+                angVelMag = angVelMin + (rotErrNorm - tolRotation) * \
                 (angVelMax - angVelMin)/(tolRotation*(lambdaRot-1))
         else:
             angVelMag = 0.0
             # The resolved rates is implemented as Nabil Simaan's notes
         # apply both the velocity and angular velocity in the error pose direction
-        sysDT = self.resolvedRatesConfig['dt']
         desiredTwist = PyKDL.Twist()
         poseError.vel.Normalize() # normalize to have the velocity direction
-        desiredTwist.vel = poseError.vel*velMag*sysDT
+        desiredTwist.vel = poseError.vel*velMag
         poseError.rot.Normalize() # normalize to have the ang vel direction
-        desiredTwist.rot = poseError.rot*angVelMag*sysDT
+        desiredTwist.rot = poseError.rot*angVelMag
         return desiredTwist
 
     def updateForceControlDir(self):
         # this func updates the force control direction based on specs
         # load the desired force control direction according to different mode
-        if self.forceProfile['controlDir'] == 'default':
+        if self.forceProfile['controlDir'] == 'surf normal':
+            # under this condition, 
+            # need to compute the force control direction based on f_buffer
+            forceCtrlDir = self.getAverageForce()
+            # Need to check the norm of the force readings, if too small, treat it as noise
+            if (forceCtrlDir.Norm()>self.forceProfile['noiseThresh']):
+                forceCtrlDir.Normalize()
+            else:
+                forceCtrlDir = PyKDL.Vector(\
+                    self.forceProfile['defaultDir'][0],
+                    self.forceProfile['defaultDir'][1],
+                    self.forceProfile['defaultDir'][2])                        
+        else: 
+            # if in default direction case
             forceCtrlDir = PyKDL.Vector(\
                 self.forceProfile['defaultDir'][0],
                 self.forceProfile['defaultDir'][1],
                 self.forceProfile['defaultDir'][2])
-        else: 
-            # under this condition, 
-            # need to compute the force control direction based on f_buffer
-            forceCtrlDir = self.getAverageForce()
-        forceCtrlDir.Normalize()
         return forceCtrlDir
 
     def forceAdmittanceControl(self,forceCtrlDir):
@@ -184,65 +198,90 @@ class ContinuousPalpation:
         # get the current force
         forceError = self.fCurrent - desiredForce
         # apply admittance gain to compute motion
-        sysDT = self.resolvedRatesConfig['dt']
         desiredTwist = PyKDL.Twist()
         desiredTwist.vel = PyKDL.Vector(\
-            forceError.x()*self.forceProfile['admittanceGains'][0]*sysDT,
-            forceError.y()*self.forceProfile['admittanceGains'][1]*sysDT,
-            forceError.z()*self.forceProfile['admittanceGains'][2]*sysDT)
+            forceError.x()*self.forceProfile['admittanceGains'][0],
+            forceError.y()*self.forceProfile['admittanceGains'][1],
+            forceError.z()*self.forceProfile['admittanceGains'][2])
         desiredTwist.rot = PyKDL.Vector(0.0,0.0,0.0)
         return desiredTwist
 
-    def hybridPosForce(self, xDeltaMotion, xDeltaForce, poseCur,forceCtrlDir):
+    def hybridPosForce(self, xDotMotion, xDotForce, poseCur,forceCtrlDir):
         # TODO implement hybrid force position control
         # project the force command onto the force control direction
-        velForce = self.projectDirection(forceCtrlDir,xDeltaForce.vel)
-        xDeltaForce.vel = velForce
+        velForce = self.projectDirection(forceCtrlDir,xDotForce.vel)
+        xDotForce.vel = velForce
         # project the motion command onto the null space of force control direction
-        velMotion = self.projectNullSpace(forceCtrlDir,xDeltaMotion.vel)
-        xDeltaMotion.vel = velMotion
+        velMotion = self.projectNullSpace(forceCtrlDir,xDotMotion.vel)
+        xDotMotion.vel = velMotion
+        # combine twist 
+        xDotMotionForce = xDotMotion + xDotForce
         # apply the desired twist on the currnet pose
-        poseToMove = PyKDL.Frame.Identity()
-        return poseToMove
+        sysDT = self.resolvedRatesConfig['dt']
+        poseToMove = PyKDL.addDelta(poseCur,xDotMotionForce,sysDT)
+        # Here we also need to compute if the motion command is still active
+        if xDotMotion.vel.Norm()<0.000001:
+            positionReached = True
+        else:
+            positionReached = False
 
-    def checkEqual(self, current, desired):
-        # TODO check equality before popping
-        try:
-            self.trajectory.popleft()
-        except IndexError:
-            # TODO handle end of function
-                print "no more trajectories"
+        if xDotMotion.rot.Norm()<0.000001:
+            orientationReached = True
+        else:
+            orientationReached = False
+        return poseToMove, positionReached, orientationReached
+
+    def checkGoalReached(self, positionReached, orientationReached):
+        # check equality before popping
+        if (positionReached and orientationReached):
+            try:
+                self.trajectory.popleft()
+            except IndexError:
+                # TODO handle end of function
+                    print "no more trajectories"
 
     @staticmethod
     def projectDirection(projDir,vector):
         # this static method compute the projection of a vector onto a direction
         # both variables need to be in format of PyKDL.Vector
         # compute the projection magnitude of vector onto the direction
-        projDir.Normalize()
-        projectMag = PyKDL.dot(vector,projDir)
-        # apply the magnitude on the direction
-        projectedVector = projDir * projectMag
+        if projDir.Norm()<0.000001:
+            projectedVector = PyKDL.Vector(0,0,0)
+        else:
+            projectMag = PyKDL.dot(vector,projDir)
+            # apply the magnitude on the direction
+            projectedVector = projDir * projectMag
         return projectedVector
 
     @staticmethod
     def projectNullSpace(projDir,vector): 
         # this static method compute the projection of a vector
-        # onto the null space of a direction
-        # First step - find two unit vectors that represents the null space
-        # we use two candidates(initializers) vectors to find the null space
-        # checkout Gram–Schmidt on wikepedia
-        candidateVect1 = PyKDL.Vector(1.0,1.0,1.0)
-        candidateVect1.Normalize()
-        candidateVect2 = PyKDL.Vector(0.5,-1.0,0.5)
-        candidateVect2.Normalize()    
-        if (abs(PyKDL.dot(candidateVect1,projDir))<\
-            abs(PyKDL.dot(candidateVect2,projDir))):
-            candidateVect = candidateVect1
+        if projDir.Norm()<0.000001:
+            projectedVector = vector
         else:
-            candidateVect = candidateVect2
-        axis1 = PyKDL.curr
-        ipdb.set_trace()        
-        projectedVector = PyKDL.Vector(0.0,0.0,0.0)
+            # onto the null space of a direction
+            # Step ONE - find two unit vectors that represents the null space
+            # we use two candidates(initializers) vectors to find the null space
+            # checkout Gram–Schmidt on wikepedia
+
+            candidateVect1 = PyKDL.Vector(1.0,1.0,1.0)
+            candidateVect1.Normalize()
+            candidateVect2 = PyKDL.Vector(0.5,-1.0,0.5)
+            candidateVect2.Normalize()    
+            if (abs(PyKDL.dot(candidateVect1,projDir))<\
+                abs(PyKDL.dot(candidateVect2,projDir))):
+                candidateVect = candidateVect1
+            else:
+                candidateVect = candidateVect2
+            axis1 = candidateVect * projDir
+            axis1.Normalize(); projDir.Normalize()
+            axis2 = projDir * axis1 # think of projDir as z axis
+            # Step TWO - find the prjection magnitude onto the two null space axes
+            projMagAxis1 = PyKDL.dot(axis1,vector)
+            projMagAxis2 = PyKDL.dot(axis2,vector)
+            # Step THREE - apply the magnitudes to the axes and superimpose them
+            projectedVector = \
+            projMagAxis1*axis1 + projMagAxis2*axis2
         return projectedVector
 if __name__ == '__main__':
     ContinuousPalpation(psmName = 'PSM1', forceTopic = '/atinetft/raw_wrench')

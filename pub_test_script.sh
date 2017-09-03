@@ -6,20 +6,20 @@ rostopic pub /set_continuous_palpation_trajectory geometry_msgs/PoseArray "heade
   frame_id: ''
 poses:
 - position:
-    x: 0.01
-    y: 0.01
-    z: 0.01
+    x: -0.00558
+    y: 0.00802
+    z: -0.10137
   orientation:
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0
+    x:  0.0339
+    y: -0.7098
+    z:  0.6978
+    w: -0.0901
 - position:
-    x: 0.015
-    y: 0.015
-    z: 0.015
+    x: -0.0
+    y: 0.00
+    z: -0.10137
   orientation:
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 1.0"
+    x:  0.0339
+    y: -0.7098
+    z:  0.6978
+    w: -0.0901"
