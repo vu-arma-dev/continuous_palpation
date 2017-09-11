@@ -81,29 +81,39 @@ class ContinuousPalpation:
 
     def run(self):
         nextPose = PyKDL.Frame.Identity()
-        noPoseCommanded = True
         while not rospy.is_shutdown():
+            # Publish trajectory length at all times
+            self.trajStatusPub.publish(len(self.trajectory))
+
+            # Check if there are any trajectories
             try:
                 nextPose = self.trajectory[0]
             except IndexError:
                 # If no trajectory do nothing
                 continue
+            
             # get current and desired robot pose (desired is the top of queue)
             currentPose = self.robot.get_desired_position()
             desiredPose = self.trajectory[0]
-            if noPoseCommanded:
-                poseToMove = copy.copy(currentPose)
-                noPoseCommanded = False
             # compute the desired twist "x_dot" from motion command
             xDotMotion = self.resolvedRates(currentPose,desiredPose) # xDotMotion is type [PyKDL.Twist]
             # compute the desired twist "x_dot" from force command
             forceCtrlDir = self.updateForceControlDir()
             xDotForce = self.forceAdmittanceControl(forceCtrlDir) # xDotForce is type [PyKDL.Twist]
-            [poseToMove,positionReached,orientationReached] = \
-            self.hybridPosForce(xDotMotion,xDotForce,poseToMove,forceCtrlDir)
+            xDot = self.hybridPosForce(xDotMotion,xDotForce,forceCtrlDir)
+
+            # apply the desired twist on the currnet pose
+            dt = self.resolvedRatesConfig['dt']
+            poseToMove = PyKDL.addDelta(poseCur,xDotMotionForce,sysDT)
+
+            # Check whether we have reached our goal
+            if  xDotMotion.vel.Norm() <= self.resolvedRatesConfig['tolPos'] \
+            and xDotMotion.rot.Norm() <= self.resolvedRatesConfig['tolRot']:
+                self.trajectory.popleft()
+                print(len(self.trajectory))
+
+            # Move the robot
             self.robot.move(poseToMove, interpolate = False)
-            self.checkGoalReached(positionReached,orientationReached)
-            self.trajStatusPub.publish(len(self.trajectory))
             self.rate.sleep()
 
         # spin() simply keeps python from exiting until this node is stopped
@@ -222,7 +232,7 @@ class ContinuousPalpation:
         desiredTwist.rot = PyKDL.Vector(0.0,0.0,0.0)
         return desiredTwist
 
-    def hybridPosForce(self, xDotMotion, xDotForce, poseCur,forceCtrlDir):
+    def hybridPosForce(self, xDotMotion, xDotForce, forceCtrlDir):
         # TODO implement hybrid force position control
         # project the force command onto the force control direction
         velForce = self.projectDirection(forceCtrlDir,xDotForce.vel)
@@ -231,31 +241,8 @@ class ContinuousPalpation:
         velMotion = self.projectNullSpace(forceCtrlDir,xDotMotion.vel)
         xDotMotion.vel = velMotion
         # combine twist 
-        xDotMotionForce = xDotMotion + xDotForce
-        # apply the desired twist on the currnet pose
-        sysDT = self.resolvedRatesConfig['dt']
-        poseToMove = PyKDL.addDelta(poseCur,xDotMotionForce,sysDT)
-        # Here we also need to compute if the motion command is still active
-        if xDotMotion.vel.Norm()<0.000001:
-            positionReached = True
-        else:
-            positionReached = False
-
-        if xDotMotion.rot.Norm()<0.000001:
-            orientationReached = True
-        else:
-            orientationReached = False
-        return poseToMove, positionReached, orientationReached
-
-    def checkGoalReached(self, positionReached, orientationReached):
-        # check equality before popping
-        if (positionReached and orientationReached):
-            try:
-                self.trajectory.popleft()
-                print "target reached"
-            except IndexError:
-                # TODO handle end of function
-                    print "no more trajectories"
+        xDot = xDotMotion + xDotForce
+        return xDot
 
     @staticmethod
     def projectDirection(projDir,vector):
