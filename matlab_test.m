@@ -5,14 +5,14 @@ catch
 end
 
 %% dvrk Init
-addpath('~/catkin_ws/src/cisst-saw-nri/dvrk-ros/dvrk_matlab/');
+addpath('/home/arma/catkin_ws_nico/src/dvrk-ros/dvrk_matlab/');
 %%
 try
     rosinit();
 catch
     warning('Using existing ros node');
 end
-dvrk = psm('PSM2');
+dvrk = psm('PSM1');
 %%
 force_sub = rossubscriber('/atinetft/wrench');
 traj_sub = rossubscriber('/trajectory_length');
@@ -30,6 +30,13 @@ rate = rosrate(200);
 
 %% Initialization
 load 4corners.mat
+
+%%  demonstrate motion/force control
+a = dvrk.get_position_current();
+pos = a(1:3,4);
+traj = [pos, pos, pos, pos];
+traj(2,:) = traj(2,:) - 0.01;
+send_trajectory(traj, dvrk);
 
 %% Send trajectory
     traj_XY = xs_traj(1:2,:);%2*N trajectory of 2D positions

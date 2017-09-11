@@ -16,7 +16,7 @@ import copy
 from IPython import embed
 
 # DEBUG TOOLS
-# import ipdb
+import ipdb
 
 class ContinuousPalpation:
     def __init__(self, psmName, forceTopic, bufferSize = 50):
@@ -55,13 +55,13 @@ class ContinuousPalpation:
         self.forceProfile = \
         {   'period':0.5, # Seconds
             'amplitude': 0.0, # Newtons, default = 0.5
-            'fBiasMag': 0.0, # Newtons, biased force magnitude, default=0.7
+            'fBiasMag': 0.5, # Newtons, biased force magnitude, default=0.7
             'magnitudeMode': 'bias', # 'bias' or 'sine', or 'sine bias'
-            'controlDir':'surf normal', # 'default' or 'surf normal'
-            'defaultDir':[0.0,0.0,0.0], # default = [0.0,0.0,1.0]
-            'admittanceGains':[ 100.0 / 1000,\
-                                100.0 / 1000,\
-                                100.0 / 1000], # force admittance gains, (m/s)/Newton
+            'controlDir':'default', # 'default' or 'surf normal'
+            'defaultDir':[0.0,0.0,1.0], # default = [0.0,0.0,1.0]
+            'admittanceGains':[ 50.0 / 1000,\
+                                50.0 / 1000,\
+                                50.0 / 1000], # force admittance gains, (m/s)/Newton
             'noiseThresh': 0.08 # Newtown, a threshold value to cancel the noise
         }
         self.resolvedRatesConfig = \
@@ -93,33 +93,30 @@ class ContinuousPalpation:
             except IndexError:
                 # If no trajectory do nothing
                 continue
-
             # get current and desired robot pose (desired is the top of queue)
-            currentPose = self.robot.get_desired_position()
-            desiredPose = self.trajectory[0]
+            currentPose = self.robot.get_current_position() # this is used to capture the error
+            lastCommand = self.robot.get_desired_position() # this is used to "integrate"
+            desiredPose = self.trajectory[0]                # this is the reference to reach
             # compute the desired twist "x_dot" from motion command [PyKDL.Twist]
-            xDotMotion = self.resolvedRates(currentPose, desiredPose)
+            [xDotMotion, goalPoseReached] =self.resolvedRates(currentPose, \
+                                                              desiredPose)
             # compute the desired twist "x_dot" from force command [PyKDL.Twist]
             forceCtrlDir = self.updateForceControlDir()
             xDotForce = self.forceAdmittanceControl(forceCtrlDir)
-            xDot = self.hybridPosForce(xDotMotion,xDotForce,forceCtrlDir)
-
-            # apply the desired twist on the currnet pose
-            dt = self.resolvedRatesConfig['dt']
-            poseToMove = PyKDL.addDelta(poseCur, xDotMotionForce, sysDT)
-
+            [xDot, goalPoseReached] = self.hybridPosForce(xDotMotion,
+                                                         xDotForce,
+                                                         forceCtrlDir)
             # Check whether we have reached our goal
-            if  xDotMotion.vel.Norm() <= self.resolvedRatesConfig['tolPos'] \
-            and xDotMotion.rot.Norm() <= self.resolvedRatesConfig['tolRot']:
+            if  goalPoseReached:
                 self.trajectory.popleft()
                 print(len(self.trajectory))
+            # apply the desired twist on the currnet pose
+            dt = self.resolvedRatesConfig['dt']
+            poseToMove = PyKDL.addDelta(lastCommand, xDot, dt)
 
             # Move the robot
             self.robot.move(poseToMove, interpolate = False)
             self.rate.sleep()
-
-        # spin() simply keeps python from exiting until this node is stopped
-        rospy.spin()
 
     def forceCB(self, data):
         # The received data needs to be in PyKDL.Vector format
@@ -158,10 +155,10 @@ class ContinuousPalpation:
         posErrNorm = poseError.vel.Norm()
         rotErrNorm = poseError.rot.Norm()
         # compute velocity magnitude based on position error norm
-        if posErrNorm>self.resolvedRatesConfig['tolPos']:
+        if posErrNorm > self.resolvedRatesConfig['tolPos']:
             tolPosition = self.resolvedRatesConfig['tolPos']
             lambdaVel = self.resolvedRatesConfig['velRatio']
-            if posErrNorm>(lambdaVel*tolPosition):
+            if posErrNorm > (lambdaVel * tolPosition):
                 velMag = self.resolvedRatesConfig['velMax']
             else:
                 velMax = self.resolvedRatesConfig['velMax']
@@ -172,10 +169,10 @@ class ContinuousPalpation:
         else:
             velMag = 0.0
         # compute angular velocity based on rotation error norm
-        if rotErrNorm>self.resolvedRatesConfig['tolRot']:
+        if rotErrNorm > self.resolvedRatesConfig['tolRot']:
             tolRotation = self.resolvedRatesConfig['tolRot']
             lambdaRot = self.resolvedRatesConfig['rotRatio']
-            if rotErrNorm>(lambdaRot*tolRotation):
+            if rotErrNorm > (lambdaRot * tolRotation):
                 angVelMag = self.resolvedRatesConfig['angVelMax']
             else:
                 angVelMax = self.resolvedRatesConfig['angVelMax']
@@ -193,7 +190,10 @@ class ContinuousPalpation:
         desiredTwist.vel = poseError.vel * velMag
         poseError.rot.Normalize() # normalize to have the ang vel direction
         desiredTwist.rot = poseError.rot * angVelMag
-        return desiredTwist
+        # Check whether we have reached our goal
+        goalReached = desiredTwist.vel.Norm() <= self.resolvedRatesConfig['velMin'] \
+                      and desiredTwist.rot.Norm() <= self.resolvedRatesConfig['angVelMin']
+        return desiredTwist, goalReached
 
     def updateForceControlDir(self):
         # this func updates the force control direction based on specs
@@ -245,7 +245,11 @@ class ContinuousPalpation:
         xDotMotion.vel = velMotion
         # combine twist 
         xDot = xDotMotion + xDotForce
-        return xDot
+
+        # Check whether we have reached our goal
+        goalReached = xDotMotion.vel.Norm() <= self.resolvedRatesConfig['velMin'] \
+                      and xDotMotion.rot.Norm() <= self.resolvedRatesConfig['angVelMin']
+        return xDot, goalReached
 
     @staticmethod
     def projectDirection(projDir,vector):
