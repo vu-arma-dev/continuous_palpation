@@ -89,7 +89,7 @@ class ContinuousPalpation:
                 # If no trajectory do nothing
                 continue
             # get current and desired robot pose (desired is the top of queue)
-            currentPose = self.robot.get_current_position()
+            currentPose = self.robot.get_desired_position()
             desiredPose = self.trajectory[0]
             if noPoseCommanded:
                 poseToMove = copy.copy(currentPose)
