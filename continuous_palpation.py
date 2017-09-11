@@ -13,8 +13,10 @@ from dvrk import psm
 from time import time
 import copy
 
+from IPython import embed
+
 # DEBUG TOOLS
-import ipdb
+# import ipdb
 
 class ContinuousPalpation:
     def __init__(self, psmName, forceTopic, bufferSize = 50):
@@ -109,8 +111,9 @@ class ContinuousPalpation:
 
     def forceCB(self, data):
         # The received data needs to be in PyKDL.Vector format
-        self.fCurrent = data.wrench.force
-        self.f_buffer.append(fCurrent)
+        force = data.wrench.force
+        self.fCurrent = PyKDL.Vector(force.x,force.y,force.z)
+        self.fBuffer.append(self.fCurrent)
     
     def getAverageForce(self):
         # TODO let's figure out a way to do this using PyKDL
@@ -263,7 +266,7 @@ class ContinuousPalpation:
             # onto the null space of a direction
             # Step ONE - find two unit vectors that represents the null space
             # we use two candidates(initializers) vectors to find the null space
-            # checkout Gram–Schmidt on wikepedia
+            # checkout Gram-Schmidt on wikepedia
 
             candidateVect1 = PyKDL.Vector(1.0,1.0,1.0)
             candidateVect1.Normalize()
