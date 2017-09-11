@@ -122,11 +122,24 @@ class ContinuousPalpation:
         return np.mean(self.fBuffer)
     
     def poseCB(self, data):
+        # Check if timestamp makes sense
+        time_diff = (rospy.get_rostime() - data.header.stamp).to_sec()
+        if time_diff > 10:
+            print("Ignoring old message timestamped %2fs ago", time_diff)
+            return
         self.trajectory.append(posemath.fromMsg(data.pose))
-    
+        print(len(self.trajectory))
+
     def poseArrayCB(self, data):
+        # Check if timestamp makes sense
+        time_diff = (rospy.get_rostime() - data.header.stamp).to_sec()
+        if time_diff > 10:
+            print("Ignoring old message timestamped %.2fs ago" % time_diff)
+            return
+        # Fill out pose array
         for pose in data.poses:
             self.trajectory.append(posemath.fromMsg(pose))
+        print(len(self.trajectory))
 
     def resolvedRates(self,currentPose,desiredPose):
         # compute pose error (result in kdl.twist format)
