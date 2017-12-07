@@ -20,7 +20,12 @@
 * catkin build
 * cd ~/WORKSPACE_NAME
 
-
-
-
-
+## To run the code
+* source devel_release/setup.bash
+* qlacloserelays
+* start the robot console application: rosrun dvrk_robot dvrk_console_json -j /home/arma/catkin_ws_nico/src/cisst-saw/sawIntuitiveResearchKit/share/vu-dVRK/console-PSM1.json
+* rosrun atinetft_ros atinetft_xml -c /home/arma/catkin_ws_nico/src/cisst-saw/sawATIForceSensor/examples/FT15360Net.xml -i 192.168.1.145
+## From your catkin workspace:
+* cd src/continuous_palpation/
+* ipython continuous_palpation.py 
+* 

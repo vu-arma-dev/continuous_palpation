@@ -58,7 +58,7 @@ class ContinuousPalpation:
             'fBiasMag': 0.5, # Newtons, biased force magnitude, default=0.7
             'magnitudeMode': 'bias', # 'bias' or 'sine', or 'sine bias'
             'controlDir':'default', # 'default' or 'surf normal'
-            'defaultDir':[0.0,0.0,1.0], # default = [0.0,0.0,1.0]
+            'defaultDir':[0.0,0.0,0.0], # default = [0.0,0.0,1.0]
             'admittanceGains':[ 50.0 / 1000,\
                                 50.0 / 1000,\
                                 50.0 / 1000], # force admittance gains, (m/s)/Newton
@@ -82,40 +82,39 @@ class ContinuousPalpation:
         self.run()
 
     def run(self):
-        nextPose = PyKDL.Frame.Identity()
+        desiredPose = PyKDL.Frame.Identity()
+        commandedPose = self.robot.get_desired_position() # this is used to "integrate"
         while not rospy.is_shutdown():
             # Publish trajectory length at all times
             self.trajStatusPub.publish(len(self.trajectory))
 
             # Check if there are any trajectories
             try:
-                nextPose = self.trajectory[0]
+                desiredPose = self.trajectory[0]
             except IndexError:
                 # If no trajectory do nothing
                 continue
             # get current and desired robot pose (desired is the top of queue)
             currentPose = self.robot.get_current_position() # this is used to capture the error
-            lastCommand = self.robot.get_desired_position() # this is used to "integrate"
-            desiredPose = self.trajectory[0]                # this is the reference to reach
             # compute the desired twist "x_dot" from motion command [PyKDL.Twist]
-            [xDotMotion, goalPoseReached] =self.resolvedRates(currentPose, \
-                                                              desiredPose)
+            [xDotMotion, goalPoseReached] = self.resolvedRates(currentPose, \
+                                                               desiredPose)
             # compute the desired twist "x_dot" from force command [PyKDL.Twist]
             forceCtrlDir = self.updateForceControlDir()
             xDotForce = self.forceAdmittanceControl(forceCtrlDir)
             [xDot, goalPoseReached] = self.hybridPosForce(xDotMotion,
-                                                         xDotForce,
-                                                         forceCtrlDir)
+                                                          xDotForce,
+                                                          forceCtrlDir)
             # Check whether we have reached our goal
             if  goalPoseReached:
                 self.trajectory.popleft()
                 print(len(self.trajectory))
             # apply the desired twist on the currnet pose
             dt = self.resolvedRatesConfig['dt']
-            poseToMove = PyKDL.addDelta(lastCommand, xDot, dt)
-
+            commandedPose = PyKDL.addDelta(commandedPose, xDot, dt)
+            #ipdb.set_trace()
             # Move the robot
-            self.robot.move(poseToMove, interpolate = False)
+            self.robot.move(commandedPose, interpolate = False)
             self.rate.sleep()
 
     def forceCB(self, data):
@@ -241,7 +240,8 @@ class ContinuousPalpation:
         velForce = self.projectDirection(forceCtrlDir,xDotForce.vel)
         xDotForce.vel = velForce
         # project the motion command onto the null space of force control direction
-        velMotion = self.projectNullSpace(forceCtrlDir,xDotMotion.vel)
+        #velMotion = self.projectNullSpace(forceCtrlDir,xDotMotion.vel)
+        velMotion = self.projectNullSpace2(forceCtrlDir,xDotMotion.vel)
         xDotMotion.vel = velMotion
         # combine twist 
         xDot = xDotMotion + xDotForce
@@ -250,6 +250,10 @@ class ContinuousPalpation:
         goalReached = xDotMotion.vel.Norm() <= self.resolvedRatesConfig['velMin'] \
                       and xDotMotion.rot.Norm() <= self.resolvedRatesConfig['angVelMin']
         return xDot, goalReached
+
+    def projectNullSpace2(self,projDir,vector):
+        # this static method computes vector projection in a different way
+        return vector-self.projectDirection(projDir,vector)
 
     @staticmethod
     def projectDirection(projDir,vector):
@@ -293,5 +297,6 @@ class ContinuousPalpation:
             # Step THREE - apply the magnitudes to the axes and superimpose them
             projectedVector = projMagAxis1 * axis1 + projMagAxis2 * axis2
         return projectedVector
+
 if __name__ == '__main__':
     ContinuousPalpation(psmName = 'PSM1', forceTopic = '/atinetft/raw_wrench')
