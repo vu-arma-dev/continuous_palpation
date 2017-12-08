@@ -37,6 +37,9 @@ class ContinuousPalpation:
                                         data_class = PoseArray,
                                         callback = self.poseArrayCB,
                                         queue_size = 1)
+        self.forceSensorConfig = \
+        {   'mount':'base' # either 'base' or 'tip', force sensor at the base of the phantom or at the tip of the robot
+        }
         self.forceSub = rospy.Subscriber(name = forceTopic,
                                          data_class = WrenchStamped,
                                          callback = self.forceCB,
@@ -54,11 +57,10 @@ class ContinuousPalpation:
         self.rate = rospy.Rate(1000) # 1000hz
         self.forceProfile = \
         {   'period':0.5, # Seconds
-            'amplitude': 0.0, # Newtons, default = 0.5
+            'amplitude': 0.5, # Newtons, default = 0.5
             'fBiasMag': 0.5, # Newtons, biased force magnitude, default=0.7
-            'magnitudeMode': 'bias', # 'bias' or 'sine', or 'sine bias'
             'controlDir':'default', # 'default' or 'surf normal'
-            'defaultDir':[0.0,0.0,0.0], # default = [0.0,0.0,1.0]
+            'defaultDir':[0.0,0.0,1.0], # default = [0.0,0.0,1.0]
             'admittanceGains':[ 50.0 / 1000,\
                                 50.0 / 1000,\
                                 50.0 / 1000], # force admittance gains, (m/s)/Newton
@@ -66,7 +68,7 @@ class ContinuousPalpation:
         }
         self.resolvedRatesConfig = \
         {   'velMin': 2.0 / 1000,
-            'velMax': 20.0 / 1000,
+            'velMax': 10.0 / 1000,
             'angVelMin': 2.0 / 180.0 * np.pi,
             'angVelMax': 15.0 / 180.0 * np.pi,
             'tolPos': 0.5 / 1000, # positional tolerance
@@ -107,8 +109,9 @@ class ContinuousPalpation:
                                                           forceCtrlDir)
             # Check whether we have reached our goal
             if  goalPoseReached:
-                self.trajectory.popleft()
-                print(len(self.trajectory))
+                if len(self.trajectory)>1:
+                    self.trajectory.popleft()
+                    print(len(self.trajectory))
             # apply the desired twist on the currnet pose
             dt = self.resolvedRatesConfig['dt']
             commandedPose = PyKDL.addDelta(commandedPose, xDot, dt)
@@ -120,7 +123,10 @@ class ContinuousPalpation:
     def forceCB(self, data):
         # The received data needs to be in PyKDL.Vector format
         force = data.wrench.force
-        self.fCurrent = PyKDL.Vector(force.x,force.y,force.z)
+        if self.forceSensorConfig['mount'] == 'base':
+            self.fCurrent = PyKDL.Vector(-force.x,-force.y,-force.z)
+        else:
+            self.fCurrent = PyKDL.Vector(force.x,force.y,force.z)
         self.fBuffer.append(self.fCurrent)
     
     def getAverageForce(self):
@@ -219,7 +225,7 @@ class ContinuousPalpation:
 
     def forceAdmittanceControl(self,forceCtrlDir):
         # compute the desired force magnitude  
-        sinMag = (np.sin(self.forceProfile['period'] * time() / (2 * np.pi)) \
+        sinMag = (np.sin((2 * np.pi)/self.forceProfile['period'] * time()  ) \
                   * self.forceProfile['amplitude'])
         fRefMag = sinMag + self.forceProfile['fBiasMag']
         # compute desired force
@@ -232,6 +238,11 @@ class ContinuousPalpation:
             forceError.x()*self.forceProfile['admittanceGains'][0],
             forceError.y()*self.forceProfile['admittanceGains'][1],
             forceError.z()*self.forceProfile['admittanceGains'][2])
+        velNorm = desiredTwist.vel.Norm()
+        if velNorm > self.resolvedRatesConfig['velMax']:
+            desiredTwist.vel.Normalize()
+            desiredTwist.vel =  desiredTwist.vel \
+                                * self.resolvedRatesConfig['velMax']
         desiredTwist.rot = PyKDL.Vector(0.0,0.0,0.0)
         return desiredTwist
 
