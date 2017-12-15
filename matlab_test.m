@@ -5,6 +5,7 @@ catch
 end
 
 %% dvrk Init
+setenv(name,value)
 addpath('/home/arma/catkin_ws_nico/src/dvrk-ros/dvrk_matlab/');
 %%
 try
