@@ -21,6 +21,8 @@
 * cd ~/WORKSPACE_NAME
 
 ## To run the code
+* roscore
+--	keep running in the background	
 * source devel_release/setup.bash
 * qlacloserelays
 * start the robot console application: rosrun dvrk_robot dvrk_console_json -j /home/arma/catkin_ws_nico/src/cisst-saw/sawIntuitiveResearchKit/share/vu-dVRK/console-PSM1.json
