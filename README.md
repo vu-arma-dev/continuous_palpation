@@ -1,13 +1,15 @@
 # continuous_palpation
 
 ## Download the needed repositories
-* Make a workspace WORKSPACE_NAME
-* make a src directory and navigate to it
+* Make a workspace WORKSPACE_NAME and navigate to it
+* mkdir src and navigate to it
 * git clone https://github.com/jhu-cisst/cisst-saw --recursive
+* cd cisst-saw
 * git submodule foreach git checkout devel
 * git submodule foreach git pull
 * git submodule foreach git submodule init
 * git submodule foreach git submodule update
+* cd WORKSPACE_NAME/src
 * git clone https://github.com/jhu-dvrk/dvrk-ros.git
 * git clone https://github.com/wanglong06/continuous_palpation.git
 
