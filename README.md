@@ -9,9 +9,17 @@
 * git submodule foreach git pull
 * git submodule foreach git submodule init
 * git submodule foreach git submodule update
+* under "cisst-saw/sawRobotIO1394/components/code/Amp1394", do "git checkout devel", "git pull"
+* under "cisst-saw/sawATIForceSensor/", 
+	* add an origin-arma to have arma force sensor specifics, "git remote add origin-arma https://github.com/wanglong06/sawIntuitiveResearchKit.git" 
+	* do "git branch VU", then "git pull origin-arma VU"
 * build it using "Compiling" instructions below
+
 * cd WORKSPACE_NAME/src
 * git clone https://github.com/jhu-dvrk/dvrk-ros.git
+* cd dvrk-ros, 
+* git checkout devel
+* git pull
 * catkin build
 * git clone https://github.com/wanglong06/continuous_palpation.git
 
@@ -22,17 +30,6 @@
 * catkin profile set release
 * catkin config --cmake-args -DCMAKE_BUILD_TYPE=Release
 * catkin build
-
-## Setup the correct git branch ##
-First thing first, need to check the branch.
-* everything need to be under "devel"
-* under cisst-saw, do "git submodule foreach git checkout devel", 
-* and then "git submodule foreach git pull"
-* under dvrk-ros, do "git checkout devel" and then "git pull"
-* under "cisst-saw/sawRobotIO1394/components/code/Amp1394", do "git checkout devel", "git pull"
-* under "cisst-saw/sawATIForceSensor/", 
-	* add an origin-arma to have arma force sensor specifics, "git remote add origin-arma https://github.com/wanglong06/sawIntuitiveResearchKit.git" 
-	* do "git branch VU", then "git pull origin-arma VU"
 
 ## To run the code ##
 
