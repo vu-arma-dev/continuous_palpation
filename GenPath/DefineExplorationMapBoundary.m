@@ -1,4 +1,4 @@
-function DefineExplorationMapCorners(MapName)
+function DefineExplorationMapBoundary(MapName)
 %%  Define the surface exploration map boundary
 %   Long Wang, 2017/12/15
 %   By selecting the points on the boundary of a polygon,
@@ -17,7 +17,7 @@ if nargin<1
         MapName = 'ExplrMap';
     end
 end
-dvrk_init_contiuous_palp;
+dvrk_init_continous_palp;
 dvrk = psm('PSM1');
 DefineNextPoint = 1;
 SaveResult = 0;

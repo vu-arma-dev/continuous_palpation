@@ -1,4 +1,4 @@
-function dvrk_init_contiuous_palp()
+function dvrk_init_continous_palp()
 %%  checking ros 
 try
     rosshutdown();
