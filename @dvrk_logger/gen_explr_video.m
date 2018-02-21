@@ -12,11 +12,11 @@ if numel(varargin)
     end
 end
 %%  Define/Open VideoWriter obj
-root_path = fileparts(getenv('PSMCMD'));
-if ~exist([root_path,'\Figures_Videos\'],'dir')
-    mkdir([root_path,'\Figures_Videos\']);
+cont_palp_path = getenv('CONT_PALP_DIR');
+if ~exist([cont_palp_path,'\Figures_Videos\'],'dir')
+    mkdir([cont_palp_path,'\Figures_Videos\']);
 end
-v = VideoWriter([root_path,'\Figures_Videos\',videoName],'MPEG-4');
+v = VideoWriter([cont_palp_path,'\Figures_Videos\',videoName],'MPEG-4');
 v.Quality = 100;
 %   Calculate fps
 time_diff = diff(self.logs(1).time);
