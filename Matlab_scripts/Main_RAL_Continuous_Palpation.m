@@ -3,8 +3,6 @@
 clc;close all;clear;
 dvrk_init_continous_palp;
 dvrk = psm('PSM1');
-% myTime=datetime;
-% logger=dvrk_logger([datestr(myTime,'mmm-dd_HH-MM-SS') '_Continuous'],'/home/arma/catkin_ws_nico/src/continuous_palpation');
 %%  Ros topics
 % force_sub = rossubscriber('/atinetft/wrench');
 traj_sub = rossubscriber('/trajectory_length');
@@ -42,5 +40,3 @@ end
 fprintf(' [ok].')
 
 %% Finish experiment and save data
-% logger.end_log;
-% logger.save;

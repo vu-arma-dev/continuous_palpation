@@ -30,12 +30,22 @@ classdef dvrk_logger < handle
             self.start_time = tic;
             self.logs = [];
         end
-        function log_position_force_quat(self, position, force, quat)
+        function log_position_force_quat(...
+                self, ...
+                position, ...
+                force, ...
+                quat,...
+                time ...% this argument is optional
+                )
             if self.current_log_idx > self.max_log_length
                 self.continue_log();
             end
             idx = self.current_log_idx;
-            timestamp = toc(self.start_time);
+            if nargin<5
+                timestamp = time;
+            else
+                timestamp = toc(self.start_time);
+            end
             self.current_log.time(idx) =  timestamp;
             self.current_log.position(:,idx) = position(:);
             self.current_log.force(:,idx) = force(:);
@@ -69,6 +79,7 @@ classdef dvrk_logger < handle
         plot_explr_map(self,varargin);
         gen_explr_video(self,varargin);
         save(self,data_sub_folder);
+        log_rosbag(self,rosbag_name);
     end
     methods(Static)
         function result = make_new_log()
