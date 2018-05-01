@@ -11,7 +11,7 @@
 * git submodule foreach git submodule update
 * under "cisst-saw/sawRobotIO1394/components/code/Amp1394", do "git checkout devel", "git pull"
 * under "cisst-saw/sawATIForceSensor/", 
-	* add an origin-arma to have arma force sensor specifics, "git remote add origin-arma https://github.com/wanglong06/sawIntuitiveResearchKit.git" 
+	* add an origin-arma to have arma force sensor specifics, "git remote add origin-arma https://github.com/wanglong06/sawATIForceSensor.git" 
 	* do "git branch VU", then "git pull origin-arma VU"
 * build it using "Compiling" instructions below
 
