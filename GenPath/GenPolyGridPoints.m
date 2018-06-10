@@ -21,12 +21,15 @@ else
 end
 %%  parse optional inputs
 scanMode = 'raster';
+scanningDirXMajor=false;
 if numel(varargin)
     for i = 1:2:numel(varargin)
         propertyName = varargin{i};
         propertyValue = varargin{i+1};
         if strcmp(propertyName,'scan mode')
             scanMode = propertyValue;
+        elseif strcmp(propertyName,'xMajor')
+            scanningDirXMajor = propertyValue;
         end
     end
 end
@@ -39,12 +42,20 @@ higher_y = max(yv);
 interval_x = lower_x:inc_x:higher_x;
 interval_y = lower_y:inc_y:higher_y;
 [bigGridX, bigGridY] = meshgrid(interval_x, interval_y);
-%%  generate raster scan in scanning in X direction
-bigGridX = bigGridX';
-bigGridY = bigGridY';
-if strcmp(scanMode,'raster')
-    bigGridX(:,1:2:end) = flip(bigGridX(:,1:2:end),1);
+%%  generate raster scan in scanning
+if scanningDirXMajor % in X direction
+    bigGridX = bigGridX';
+    bigGridY = bigGridY';
+
+    if strcmp(scanMode,'raster')
+        bigGridX(:,1:2:end) = flip(bigGridX(:,1:2:end),1);
+    end
+else % in Y direction
+    if strcmp(scanMode,'raster')
+        bigGridY(:,1:2:end) = flip(bigGridY(:,1:2:end),1);
+    end
 end
+
 %   Filter grid to get only points in polygon
 in = inpolygon(bigGridX(:), bigGridY(:), xv, yv);
 %   Return the co-ordinates of the points that are in the polygon

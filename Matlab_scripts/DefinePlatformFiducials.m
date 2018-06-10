@@ -29,7 +29,7 @@ fprintf('[q] - quit without saving previous points \n');
 N = 30;
 FiducialPositions = zeros(N,3);
 idx = 1;
-while DefineNextPoint
+while DefineNextPoint && idx<=4
     KeyInput = input('Select:','s');
     switch KeyInput
         case ''

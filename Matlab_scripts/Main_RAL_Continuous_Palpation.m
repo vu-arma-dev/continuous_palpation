@@ -10,7 +10,8 @@ rate = rosrate(200);
 %%  Load a raster trajectory
 %   The raster trajectory is generated using the followign command line
 %   DefineExplorationMapCorners
-RasterTrajName = 'ExplrMapVURaster';
+% RasterTrajName = 'ExplrMapVURaster';
+RasterTrajName='test1Raster';
 Config_mat_path = ...
     [getenv('CONT_PALP_DIR'),filesep,...
     'GenPath',filesep,'Config_Mat'];
