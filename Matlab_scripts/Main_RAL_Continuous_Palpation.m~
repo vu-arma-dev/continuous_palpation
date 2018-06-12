@@ -28,14 +28,9 @@ fprintf('\nData samples being collected ...\n');
 reverseStr = [];
 while nextTrajSentIdx<TotalLengthTraj
     send_trajectory(PATH.DATA(2:4,currentTrajSentIdx+1:nextTrajSentIdx),dvrk);
-    figure(1)
-    cla
-    DrawPathPlan(PATH.POINTS)
-    scatter3(PATH.DATA(2,currentTrajSentIdx+1),PATH.DATA(3,currentTrajSentIdx+1),PATH.DATA(4,currentTrajSentIdx+1),80,'y','filled');
-    scatter3(PATH.DATA(2,nextTrajSentIdx),PATH.DATA(3,nextTrajSentIdx),PATH.DATA(4,nextTrajSentIdx),80,'c','filled');
-    drawnow
-    
-    while traj_sub.LatestMessage.Data<=nextTrajSentIdx
+    scatter3(PATH.DATA(2,currentTrajSentIdx+1),X(2,1),X(3,1),80,'g','filled');
+    scatter3(X(1,1),X(2,1),X(3,1),80,'g','filled');
+    while traj_sub.LatestMessage.Data>1
         %         [pos,quat,force]=getRobotData(dvrk,force_sub);
         %         logger.log_position_force_quat(pos,force,quat);
         msg = sprintf('%.0f samples ... ',i);

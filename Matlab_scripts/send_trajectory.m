@@ -15,3 +15,4 @@ function send_trajectory( positions, robot)
     rospublisher('/set_continuous_palpation_trajectory', msg);
 end
 
+    

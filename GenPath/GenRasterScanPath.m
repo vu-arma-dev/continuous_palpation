@@ -29,6 +29,8 @@ if numel(varargin)
             spacingDx = propertyValue;
         elseif strcmp(propertyName,'path name')
             PathName = propertyValue;
+        elseif strcmp(propertyName,'xMajor')
+            scanningDirXMajor=propertyValue;
         end
     end
 end
@@ -48,7 +50,7 @@ PATH.DATA = zeros(4,PATH.PtsNumber);
 %%  Calculate points
 NumControlPts = PATH.PtsNumber+1;
 while NumControlPts>PATH.PtsNumber
-    PointsXY = GenPolyGridPoints(MapRefCorners(:,1),MapRefCorners(:,2),spacingDx);
+    PointsXY = GenPolyGridPoints(MapRefCorners(:,1),MapRefCorners(:,2),spacingDx,'xMajor',scanningDirXMajor);
     PointsZ = mean(MapRefHeights)*ones(length(PointsXY),1);
     ControlPts = [PointsXY';PointsZ'];
     NumControlPts = size(ControlPts,2);

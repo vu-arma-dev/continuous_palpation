@@ -13,7 +13,7 @@ import ipdb
 
 class RosbagRecord:
 
-    def __init__(self,fileInput='',folderInput=''):
+    def __init__(self,fileInput='',folderInput='',start=False):
         
         self.b_recording=False
         self.filename=fileInput
@@ -30,7 +30,8 @@ class RosbagRecord:
         rospy.on_shutdown(self.stop_recording)
 
         # Start recording
-        self.start_recording()
+        if start:
+           self.start_recording()
 
     def terminate_ros_node(self, s):
         # Adapted from http://answers.ros.org/question/10714/start-and-stop-rosbag-within-a-python-script/
@@ -66,9 +67,17 @@ class RosbagRecord:
             self.terminate_ros_node("/record_")
         self.b_recording=False
 
-#-----------------------------------------
-# Set up some basic functions with user interaction for testing class functionality
-#-----------------------------------------
+#---------------------------------------------------
+# Set up some basic functions with user interaction
+# for testing class functionality
+#---------------------------------------------------
+user_options = ['Quit',
+                'Filename', 
+                'Foldername',
+                'Start Recording',
+                'Stop Recording',
+                'Print Options',
+                'Debug']   
 def print_options():
     i = 0;
     print ''
@@ -81,7 +90,7 @@ def print_options():
 if __name__ == '__main__':
     try:
         # Create a class instance to do the recording, add options to stop recording/change filenames
-        rosbag_record = RosbagRecord('testA','/home/arma/catkin_ws/src/data')    
+        rosbag_record = RosbagRecord('testA','/home/arma/catkin_ws/src/data')
 
         opt = '111'
         print_options()

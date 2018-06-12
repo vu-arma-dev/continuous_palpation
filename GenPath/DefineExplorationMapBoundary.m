@@ -18,7 +18,7 @@ if nargin<1
     end
 end
 dvrk_init_continous_palp;
-dvrk = psm('PSM1');
+dvrk = nripsm('PSM2');
 DefineNextPoint = 1;
 SaveResult = 0;
 clc;
