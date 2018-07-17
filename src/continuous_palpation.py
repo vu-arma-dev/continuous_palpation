@@ -10,7 +10,6 @@ import PyKDL
 from tf_conversions import posemath
 from tf import transformations
 from dvrk import psm
-from nri import nripsm
 import math
 
 from time import time
@@ -31,7 +30,7 @@ class ContinuousPalpation:
 
         self.trajectory = deque([])
         self.inContact = False
-
+        self.pause = True
         # Set up subscibers
         self.poseSub = rospy.Subscriber(name = 'set_continuous_palpation_goal',
                                         data_class = PoseStamped,
@@ -67,7 +66,8 @@ class ContinuousPalpation:
                                              queue_size = 1,
                                              latch = False)
 
-        self.robot = nripsm(psmName)
+        self.robot = psm(psmName)
+        self.robot.home()
 
         # TODO make these values not hard coded
         self.rate = rospy.Rate(1000) # 1000hz
@@ -77,9 +77,9 @@ class ContinuousPalpation:
             'fBiasMag':  0.2, # Newtons, biased force magnitude, default=0.7
             'controlDir':'default', # 'default' or 'surf normal'
             'defaultDir':[0.0,0.0,1.0], # default = [0.0,0.0,1.0]
-            'admittanceGains':[ 50.0 / 1000,\
-                                50.0 / 1000,\
-                                50.0 / 1000], # force admittance gains, (m/s)/Newton
+            'admittanceGains':[ 5.0 / 1000,\
+                                5.0 / 1000,\
+                                5.0 / 1000], # force admittance gains, (m/s)/Newton
             'noiseThresh': 0.08, # Newtown, a threshold value to cancel the noise
             'b_forceOn': False,
         }
@@ -93,30 +93,29 @@ class ContinuousPalpation:
             'velRatio': 3.0, # the ratio of max velocity error radius to
                               # tolarance radius, this value >1
             'rotRatio': 5.0,
-            'dt': 1.0 / 1000, # this is the time step of the system. 
+            'dt': 1.0 / 10, # this is the time step of the system. 
                             # if rate=1khz, then dt=1.0/1000. However, 
                             # we don't know if the reality will be the same
                             # as desired rate
             'b_wristOrient': True,
             'zref': PyKDL.Vector(0,0,-1),
         }
-        self.trajFinished=0
+        self.trajLength=0
 
         self.run()
 
     def run(self):
-        desiredPose = PyKDL.Frame.Identity()
-        commandedPose = self.robot.get_desired_position() # this is used to "integrate"
+        commandedPose = self.robot.get_desired_position() # find start pose
+        desiredPose = commandedPose # match original desired position at start
         while not rospy.is_shutdown():
             # Publish trajectory length at all times
-            # ipdb.set_trace()
-            self.trajStatusPub.publish(self.trajFinished)
+            self.trajStatusPub.publish(self.trajLength)
 
             # Check if there are any trajectories
             try:
                 desiredPose = self.trajectory[0]
             except IndexError:
-                # If no trajectory do nothing
+                # If no trajectory don't move, exit
                 continue
 
             # get current and desired robot pose (desired is the top of queue)
@@ -144,9 +143,16 @@ class ContinuousPalpation:
                                                                desiredPose)
             # Do hybrid force motion if using the force controller
             if self.forceProfile['b_forceOn']:
+                ipdb.set_trace()
                 # compute the desired twist "x_dot" from force command [PyKDL.Twist]
                 if self.resolvedRatesConfig['b_wristOrient'] and self.inContact:
-                    forceCtrlDir = -zdes
+                    try:
+                        forceCtrlDir = -zdes
+                    except NameError:
+                        forceCntrlDir = PyKDL.Vector(\
+                            self.forceProfile['defaultDir'][0],
+                            self.forceProfile['defaultDir'][1],
+                            self.forceProfile['defaultDir'][2])
                 else:
                     forceCtrlDir = self.updateForceControlDir()
                 xDotForce = self.forceAdmittanceControl(forceCtrlDir)
@@ -158,12 +164,12 @@ class ContinuousPalpation:
             # Check whether we have reached our goal
             if goalPoseReached:
                # ipdb.set_trace()
-               # When first reached the goal pose, turn on the force controller
+               # When first reached the first goal pose, turn on the force controller
                self.forceProfile['b_forceOn']=True
                if len(self.trajectory)>1 and self.inContact:
                    self.trajectory.popleft()
-                   self.trajFinished=self.trajFinished+1
-                   print(self.trajFinished)
+                   self.trajLength=self.trajLength+1
+                   print(self.trajLength)
                # else:
                #      ipdb.set_trace()
             # apply the desired twist on the currnet pose
@@ -171,7 +177,7 @@ class ContinuousPalpation:
             commandedPose = PyKDL.addDelta(commandedPose, xDot, dt)
             #ipdb.set_trace()
             # Move the robot
-            self.robot._arm__move(commandedPose, interpolate = False)
+            self.robot._arm__move_frame(commandedPose, interpolate = True)
             self.rate.sleep()
 
     def forceCB(self, data):
@@ -187,6 +193,8 @@ class ContinuousPalpation:
 
         self.fBuffer.append(self.fCurrent)
         self.inContact = self.fCurrent.Norm() > 0.15
+        # if self.inContact and self.pause:
+        #     ipdb.set_trace()
     
     def getAverageForce(self):
         if len(self.fBuffer) == 0:
@@ -208,10 +216,12 @@ class ContinuousPalpation:
         if time_diff > 10:
             print("Ignoring old message timestamped %.2fs ago" % time_diff)
             return
+        else:
+            print("Accepting a message")
         # Fill out pose array
         for pose in data.poses:
             self.trajectory.append(posemath.fromMsg(pose))
-        # print(len(self.trajectory))
+            # print(len(self.trajectory))
 
     def resolvedRates(self,currentPose,desiredPose):
         # compute pose error (result in kdl.twist format)
@@ -262,7 +272,7 @@ class ContinuousPalpation:
     def updateForceControlDir(self):
         # this func updates the force control direction based on specs
         # load the desired force control direction according to different mode
-        if self.forceProfile['controlDir'] == 'surf normal':
+        if self.forceProfile['controlDir'] == 'surf normal' and self.inContact:
             # under this condition, 
             # need to compute the force control direction based on f_buffer
             forceCtrlDir = self.getAverageForce()
@@ -306,6 +316,8 @@ class ContinuousPalpation:
         desiredForce = forceCtrlDir * fRefMag
         # get the current force
         forceError = self.fCurrent - desiredForce
+        # ipdb.set_trace()
+        # print forceError
         # apply admittance gain to compute motion
         desiredTwist = PyKDL.Twist()
         desiredTwist.vel = PyKDL.Vector(\
@@ -408,4 +420,3 @@ class ContinuousPalpation:
 
 if __name__ == '__main__':
     ContinuousPalpation(psmName = 'PSM2', forceTopic = '/atinetft/raw_wrench')
-#    ContinuousPalpation(psmName = 'PSM2', forceTopic = '/dvrk/PSM2_FT/raw_wrench')

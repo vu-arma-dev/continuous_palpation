@@ -1,0 +1,26 @@
+<launch>
+  <arg name="arm" default="PSM2" />
+  <arg name="IP" default="192.168.1.145" />
+  <!-- <include file="$(find dvrk_vision)/launch/just_cams.launch">
+  	<arg name="camera_parent" default="$(arg arm)_psm_base_link"/>
+  </include>
+ -->
+  <node name="dvrk_jconsole"
+  		pkg="dvrk_robot" 
+  		type="dvrk_console_json" 
+	  	args="-j /home/arma/catkin_ws/src/cisst-saw-nri/sawIntuitiveResearchKit/share/vu-dVRK/console-$(arg arm).json"
+	  	output="screen"/>
+
+  <node name="atift"
+        pkg = "atinetft_ros"
+        type = "atinetft_xml"
+        args = "-c /home/arma/catkin_ws/src/cisst-saw-nri/sawATIForceSensor/examples/FT15360Net.xml -i $(arg IP)" />
+        
+<!--   <node name = "cont_palp"
+        pkg = "continuous_palpation"
+        type= "continuous_palpation.py"
+        output="screen"/> -->
+  		
+
+
+</launch>
