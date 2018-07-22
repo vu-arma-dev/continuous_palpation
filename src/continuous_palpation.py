@@ -42,6 +42,7 @@ class ContinuousPalpation:
         self.trajectory = deque([])
         self.inContact = False
         self.pause = True
+        self.movingDirection=PyKDL.Vector(0,-1,0)
         # Set up subscibers
         self.poseSub = rospy.Subscriber(name = 'set_continuous_palpation_goal',
                                         data_class = PoseStamped,
@@ -146,6 +147,10 @@ class ContinuousPalpation:
                 zdes=self.coneLimit(zdes,self.resolvedRatesConfig['zref'],np.pi/2)
 
                 zdes.Normalize()
+
+                normalDirection=self.movingDirection*PyKDL.Vector(self.forceProfile['defaultDir'][0],self.forceProfile['defaultDir'][1],self.forceProfile['defaultDir'][2])
+                zdes = self.projectNullSpace2(normalDirection,zdes)
+
                 axis = zcur*zdes
                 crossNorm=axis.Normalize()
                 dotResult=PyKDL.dot(zcur,zdes)
@@ -161,6 +166,8 @@ class ContinuousPalpation:
             # Do hybrid force motion if using the force controller
             if self.forceProfile['b_forceOn']:
                 # compute the desired twist "x_dot" from force command [PyKDL.Twist]
+
+#TRY NOT DOING THIS!
                 if self.resolvedRatesConfig['b_wristOrient'] and self.inContact:
                     try:
                         forceCtrlDir = zdes
@@ -184,10 +191,12 @@ class ContinuousPalpation:
                # When first reached the first goal pose, turn on the force controller
                self.forceProfile['b_forceOn']=True
                if len(self.trajectory)>1 and self.inContact:
-                   self.trajectory.popleft()
-                   self.trajIndex=self.trajIndex+1
-                   print("Trajectories finished: "+str(self.trajIndex))
-                   pass
+                    # self.movingDirection=PyKDL.Vector((PyKDL.diff(self.trajectory[1],self.trajectory[0])).vel)
+                    # self.movingDirection.Normalize()
+                    self.trajectory.popleft()
+                    self.trajIndex=self.trajIndex+1
+                    print("Trajectories finished: "+str(self.trajIndex))
+                    pass
                    
                # else:
                     # ipdb.set_trace()
@@ -295,7 +304,9 @@ class ContinuousPalpation:
         if self.forceProfile['controlDir'] == 'surf normal' and self.inContact:
             # under this condition, 
             # need to compute the force control direction based on f_buffer
-            forceCtrlDir = -self.getAverageForce()
+            normalDirection=self.movingDirection*self.forceProfile['defaultDir']
+            forceCtrlDir = self.projectNullSpace2(normalDirection,-PyKDL.Vector(self.getAverageForce()))
+
 
             # Need to check the norm of the force readings, if too small, treat it as noise
             if (forceCtrlDir.Norm() > self.forceProfile['noiseThresh']):
@@ -351,7 +362,7 @@ class ContinuousPalpation:
         # goalReached = xDotMotion.vel.Norm() <= self.resolvedRatesConfig['velMin'] \
         #               and xDotMotion.rot.Norm() <= self.resolvedRatesConfig['angVelMin']
         goalReached = xDotMotion.vel.Norm()  <= self.resolvedRatesConfig['velMin']  \
-                        and xDotForce <= self.resolvedRatesConfig['velEpsilon']
+                        and xDotForce.vel.Norm() <= self.resolvedRatesConfig['velEpsilon']
         return xDot, goalReached
 
     def projectNullSpace2(self,projDir,vector):
@@ -391,7 +402,7 @@ class ContinuousPalpation:
     @staticmethod
     def projectNullSpace(projDir,vector): 
         # this static method compute the projection of a vector
-        if projDir.Norm() < 0.000001:
+        if projDir.Norm() < 0.00001:
             projectedVector = vector
         else:
             # onto the null space of a direction
