@@ -1,6 +1,7 @@
 # continuous_palpation
 
 ## Download the needed repositories
+### Full download
 * Make a workspace WORKSPACE_NAME and navigate to it
 * mkdir src and navigate to it
 * git clone https://github.com/jhu-cisst/cisst-saw --recursive
@@ -13,6 +14,7 @@
 * under "cisst-saw/sawATIForceSensor/", 
 	* add an origin-arma to have arma force sensor specifics, "git remote add origin-arma https://github.com/wanglong06/sawATIForceSensor.git" 
 	* do "git branch VU", then "git pull origin-arma VU"
+	* **If you are not at VU, you still need to edit atinetft_xml.cpp to allow for roslaunch capability** see https://github.com/wanglong06/sawATIForceSensor/blob/VU/ros/src/atinetft_xml.cpp copy lines 49-53
 * build it using "Compiling" instructions below
 
 * cd WORKSPACE_NAME/src
@@ -23,7 +25,11 @@
 * catkin build
 * git clone https://github.com/wanglong06/continuous_palpation.git
 
-## Compiling
+### Partial download (already have nri)
+* cd WORKSPACE_NAME/src
+* git clone https://github.com/wanglong06/continuous_palpation.git
+
+## Compiling (first time setup)
 * cd to base dir "catkin_ws_xxxx"
 * catkin init
 * catkin config --profile release -x _release
@@ -32,15 +38,25 @@
 * catkin build
 
 ## To run the code ##
+### First time setup
+* Open MATLAB to the continuous_palpation folder. Open Matlab_scripts/dvrk_init_continuous_palp.m
+* Edit the line defining the dvrk_nri_matlab path if necessary (line 9)
 
-* roscore
---	keep running in the background	
-* cd catkin_ws_nico
-* source devel_release/setup.bash
-* qlacloserelays
-* start the robot console application: rosrun dvrk_robot dvrk_console_json -j /home/arma/catkin_ws_nico/src/cisst-saw/sawIntuitiveResearchKit/share/vu-dVRK/console-PSM1.json
-* rosrun atinetft_ros atinetft_xml -c /home/arma/catkin_ws_nico/src/cisst-saw/sawATIForceSensor/examples/FT15360Net.xml -i 192.168.1.145
+### Define palpation boundary
+* Turn on the robot (presumably launching teleop would work too, but I used this) eg:
+```
+roscore
+rosrun dvrk_robot dvrk_console_json -j /home/arma/catkin_ws/src/cisst-saw-nri/sawIntuitiveResearchKit/share/vu-dVRK/console-PSM2_VU.json
+```
+* Home the robot
+* In MATLAB, run 'GenPath/DefineExplorationMapBoundary.m' and follow directions
+* If you want to use the map you just saved, make sure to edit 'Matlab_scripts/Main_RAL_Continuous_Palpation.m' to set the 'RasterTrajName' variable
 
-## From your catkin workspace:
-* cd src/continuous_palpation/
-* ipython continuous_palpation.py
+### Running continuous palpation
+* Turn on force sensor if needed (VU needs to run xPC force sensor)
+* source your workspace
+```
+roslaunch continuous_palpation continuous_palpation.launch
+```
+* In MATLAB, run Main_RAL_Continuous_Palpation
+	* Make sure to set RasterTrajName to whatever mat file you collected above for the trajectory boundary

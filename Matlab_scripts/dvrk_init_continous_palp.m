@@ -13,5 +13,5 @@ catch
     warning('Using existing ros node');
 end
 %%  set directory for palpation folder
-setenv('CONT_PALP_DIR','/home/arma/catkin_ws/src/continuous_palpation');
+setenv('CONT_PALP_DIR',fileparts(fileparts(mfilename('fullpath'))));
 end

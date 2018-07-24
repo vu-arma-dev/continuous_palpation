@@ -125,7 +125,7 @@ class ContinuousPalpation:
         while not rospy.is_shutdown():
             toc= (time()-tic)
             if np.floor(toc/pauseTime)==1:
-                ipdb.set_trace()
+                # ipdb.set_trace()
                 tic=time()
             # Publish trajectory length at all times
             self.trajStatusPub.publish(self.trajIndex)
