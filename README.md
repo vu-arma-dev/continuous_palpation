@@ -55,8 +55,13 @@ rosrun dvrk_robot dvrk_console_json -j /home/arma/catkin_ws/src/cisst-saw-nri/sa
 ### Running continuous palpation
 * Turn on force sensor if needed (VU needs to run xPC force sensor)
 * source your workspace
+* In two separate terminals type:
 ```
 roslaunch continuous_palpation continuous_palpation.launch
+```
+and
+```
+rosbag record --split --duration=4m -e '(?!/stereo).*|/stereo/right/image_rect|/sreo/right/camera_info|/stereo/left/image_rect|/stereo/left/camera_info' -x /set_continuous_palpation_trajectory -o cont_palp_split
 ```
 * In MATLAB, run Main_RAL_Continuous_Palpation
 	* Make sure to set RasterTrajName to whatever mat file you collected above for the trajectory boundary
