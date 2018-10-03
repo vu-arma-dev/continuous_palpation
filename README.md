@@ -1,7 +1,7 @@
 # continuous_palpation
 
 ## Download the needed repositories
-### Full download
+### Full download (do not have cisst-saw)
 * Make a workspace WORKSPACE_NAME and navigate to it
 * mkdir src and navigate to it
 * git clone https://github.com/jhu-cisst/cisst-saw --recursive
@@ -11,7 +11,8 @@
 * git submodule foreach git submodule init
 * git submodule foreach git submodule update
 * under "cisst-saw/sawRobotIO1394/components/code/Amp1394", do "git checkout devel", "git pull"
-* under "cisst-saw/sawATIForceSensor/", 
+* This step is specific to Vanderbilt University force sensor setup except the last note
+	* Under "cisst-saw/sawATIForceSensor/":
 	* add an origin-arma to have arma force sensor specifics, "git remote add origin-arma https://github.com/wanglong06/sawATIForceSensor.git" 
 	* do "git branch VU", then "git pull origin-arma VU"
 	* **If you are not at VU, you still need to edit atinetft_xml.cpp to allow for roslaunch capability** see https://github.com/wanglong06/sawATIForceSensor/blob/VU/ros/src/atinetft_xml.cpp copy lines 49-53
