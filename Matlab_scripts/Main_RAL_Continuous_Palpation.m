@@ -10,26 +10,25 @@ rate = rosrate(200);
 %%  Load a raster trajectory
 %   The raster trajectory is generated using the followign command line
 %   DefineExplorationMapCorners
-% RasterTrajName = 'ExplrMapVURaster';
-% RasterTrajName='test1Raster';
-RasterTrajName='June10RasterOutputTemp';
+RasterTrajName='Organ10BoundRaster';
 Config_mat_path = ...
     [getenv('CONT_PALP_DIR'),filesep,...
-    'GenPath',filesep,'Config_Mat'];
+    'Matlab_scripts',filesep,'Config_Mat'];
 LoadedData = load([Config_mat_path,filesep,RasterTrajName]);
 PATH = LoadedData.PATH;
 TotalLengthTraj = size(PATH.DATA,2);
 currentTrajSentIdx = 0;
-trajSize=15;
+trajSize=5;
 nextTrajSentIdx = currentTrajSentIdx + trajSize;
 
 %%  logging while robot in control
 
 fprintf('\nTrajectory being sent ...\n');
 reverseStr = [];
-while nextTrajSentIdx<TotalLengthTraj
+trajPub=init_trajectory();
+while nextTrajSentIdx<=TotalLengthTraj
     index = 0;
-    send_trajectory(PATH.DATA(2:4,currentTrajSentIdx+1:nextTrajSentIdx),dvrk);
+    send_trajectory(PATH.DATA(2:4,currentTrajSentIdx+1:nextTrajSentIdx),dvrk,trajPub);
 %     figure(1)
 %     cla
 %     DrawPathPlan(PATH.POINTS)

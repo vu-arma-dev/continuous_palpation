@@ -17,11 +17,13 @@ from geometry_msgs.msg import WrenchStamped
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import PoseArray
 from std_msgs.msg import UInt32
+from std_msgs.msg import Bool
 import PyKDL
 from tf_conversions import posemath
 from tf import transformations
 from dvrk import psm
 import math
+import rosparam
 
 from time import time
 import copy
@@ -42,6 +44,7 @@ class ContinuousPalpation:
         self.trajectory = deque([])
         self.inContact = False
         self.pause = True
+        self.lastCosVal=-1
         self.movingDirection=PyKDL.Vector(0,-1,0)
         # Set up subscibers
         self.poseSub = rospy.Subscriber(name = 'set_continuous_palpation_goal',
@@ -57,13 +60,24 @@ class ContinuousPalpation:
         }
 
 
+
+        # Setup GP publishing data
+        contPalpSpace = "/dvrk/"+psmName
+        self.contactPublisher = rospy.Publisher(name = contPalpSpace + "/contact_state",
+                                              data_class = Bool,
+                                               queue_size = 1,
+                                               latch = False)
+        self.maxSinePublisher = rospy.Publisher(name = contPalpSpace + "/max_sine_event",
+                                               data_class = Bool,
+                                               queue_size = 1,
+                                               latch = False)
+
         ################################################
         # IMPORTANT TODO
         # MAKE A PROPER ROTATION FOR THE INCOMING FORCES OR HAVE IT TAKEN CARE OF SEPARATELY BY ATINETFT
         ################################################
         self.FTRotate=True
         ################################################
-
 
 
         self.forceSub = rospy.Subscriber(name = forceTopic,
@@ -85,34 +99,42 @@ class ContinuousPalpation:
         self.rate = rospy.Rate(1000) # 1000hz
         self.forceProfile = \
         {   'period': 1, # Seconds
-            'amplitude': 0.25, # Newtons, default = 0.5
-            'fBiasMag':  0.75, # Newtons, biased force magnitude, default=0.7
-            'controlDir':'surf normal', # 'default' or 'surf normal'
+            'amplitude': 2, # Newtons, default = 0.5
+            'fBiasMag':  1, # Newtons, biased force magnitude, default=0.7
+            'controlDir':'default', # 'default' or 'surf normal'
             'defaultDir':[0.0,0.0,-1.0], # default = [0.0,0.0,1.0]
-            'admittanceGains':[ 10.0 / 1000,\
-                                10.0 / 1000,\
-                                10.0 / 1000], # force admittance gains, (m/s)/Newton
+            'admittanceGains':[ 55.0 / 1000,\
+                                55.0 / 1000,\
+                                55.0 / 1000], # force admittance gains, (m/s)/Newton
             'noiseThresh': 0.08, # Newtown, a threshold value to cancel the noise
             'b_forceOn': False,
         }
+
         self.resolvedRatesConfig = \
-        {   'velMin': 2.0 / 1000,
-            'velMax': 10.0 / 1000,
-            'velEpsilon': 7.0 / 1000,
-            'angVelMin': 2.0 / 180.0 * np.pi,
-            'angVelMax': 25.0 / 180.0 * np.pi,
+        {   'velMin': 1.0 / 1000,
+            'velMax': 3.0 / 1000,
+            'absVelMax': 7.0 / 1000,
+            'velEpsilon': 1.5 / 1000,
+            'angVelMin': 3.0 / 180.0 * np.pi,
+            'angVelMax': 15.0 / 180.0 * np.pi,
             'tolPos': 0.5 / 1000, # positional tolerance
             'tolRot': 1.0 / 180*3.14, # rotational tolerance
             'velRatio': 3.0, # the ratio of max velocity error radius to
                               # tolarance radius, this value >1
-            'rotRatio': 5.0,
+            'rotRatio': 2.0,
             'dt': 1.0 / 1000, # this is the time step of the system. 
                             # if rate=1khz, then dt=1.0/1000. However, 
                             # we don't know if the reality will be the same
                             # as desired rate
             'b_wristOrient': True,
             'zref': PyKDL.Vector(0,0,-1),
+            'coneSize': np.pi/3,
         }
+
+        rospy.set_param('forceProfileInfo',self.forceProfile)
+        rospy.set_param('resolvedRatesInfo',self.resolvedRatesConfig)
+        rospy.set_param('moveDirInfo',self.movingDirection)
+
         self.trajIndex=1
 
         self.run()
@@ -144,12 +166,13 @@ class ContinuousPalpation:
             if self.resolvedRatesConfig['b_wristOrient'] and self.inContact:
                 zcur=PyKDL.Vector(currentPose.M[0,2],currentPose.M[1,2],currentPose.M[2,2])
                 zdes=-PyKDL.Vector(self.getAverageForce())
-                zdes=self.coneLimit(zdes,self.resolvedRatesConfig['zref'],np.pi/2)
+                zdes=self.coneLimit(zdes,self.resolvedRatesConfig['zref'],self.resolvedRatesConfig['coneSize'])
 
                 zdes.Normalize()
 
-                normalDirection=self.movingDirection*PyKDL.Vector(self.forceProfile['defaultDir'][0],self.forceProfile['defaultDir'][1],self.forceProfile['defaultDir'][2])
-                zdes = self.projectNullSpace2(normalDirection,zdes)
+                # Project the wrist orientation to only reorient in the moving direction
+                # normalDirection=self.movingDirection*PyKDL.Vector(self.forceProfile['defaultDir'][0],self.forceProfile['defaultDir'][1],self.forceProfile['defaultDir'][2])
+                # zdes = self.projectNullSpace2(normalDirection,zdes)
 
                 axis = zcur*zdes
                 crossNorm=axis.Normalize()
@@ -167,7 +190,6 @@ class ContinuousPalpation:
             if self.forceProfile['b_forceOn']:
                 # compute the desired twist "x_dot" from force command [PyKDL.Twist]
 
-#TRY NOT DOING THIS!
                 if self.resolvedRatesConfig['b_wristOrient'] and self.inContact:
                     try:
                         forceCtrlDir = zdes
@@ -220,6 +242,8 @@ class ContinuousPalpation:
 
         self.fBuffer.append(self.fCurrent)
         self.inContact = self.fCurrent.Norm() > 0.15
+
+        self.contactPublisher.publish(Bool(self.inContact))
         # if self.inContact and self.pause:
         #     ipdb.set_trace()
     
@@ -304,7 +328,7 @@ class ContinuousPalpation:
         if self.forceProfile['controlDir'] == 'surf normal' and self.inContact:
             # under this condition, 
             # need to compute the force control direction based on f_buffer
-            normalDirection=self.movingDirection*self.forceProfile['defaultDir']
+            normalDirection=self.movingDirection*PyKDL.Vector(self.forceProfile['defaultDir'][0],self.forceProfile['defaultDir'][1],self.forceProfile['defaultDir'][2])
             forceCtrlDir = self.projectNullSpace2(normalDirection,-PyKDL.Vector(self.getAverageForce()))
 
 
@@ -326,8 +350,15 @@ class ContinuousPalpation:
 
     def forceAdmittanceControl(self,forceCtrlDir):
         # compute the desired force magnitude  
-        sinamplitudeMag = np.sin((2 * np.pi)/self.forceProfile['period'] * time()  ) \
-                  * abs(self.forceProfile['amplitude'])+ abs(self.forceProfile['amplitude'])/2
+        curTime = (2 * np.pi)/self.forceProfile['period'] * time()  
+        sinamplitudeMag = np.sin(curTime) * abs(self.forceProfile['amplitude'])/2+ abs(self.forceProfile['amplitude'])/2
+        cosVal = np.cos(curTime)
+
+        if cosVal<=0 and self.lastCosVal>=0:
+            self.maxSinePublisher.publish(Bool(True))
+        self.lastCosVal=cosVal
+
+
         fRefMag = sinamplitudeMag + abs(self.forceProfile['fBiasMag'])
         # compute desired force
         desiredForce = forceCtrlDir * fRefMag
@@ -340,10 +371,10 @@ class ContinuousPalpation:
             forceError.y()*self.forceProfile['admittanceGains'][1],
             forceError.z()*self.forceProfile['admittanceGains'][2])
         velNorm = desiredTwist.vel.Norm()
-        if velNorm > self.resolvedRatesConfig['velMax']:
+        if velNorm > self.resolvedRatesConfig['absVelMax']:
             desiredTwist.vel.Normalize()
             desiredTwist.vel =  desiredTwist.vel \
-                                * self.resolvedRatesConfig['velMax']
+                                * self.resolvedRatesConfig['absVelMax']
         desiredTwist.rot = PyKDL.Vector(0.0,0.0,0.0)
         return desiredTwist
 
@@ -436,4 +467,4 @@ class ContinuousPalpation:
 
 
 if __name__ == '__main__':
-    ContinuousPalpation(psmName = 'PSM2', forceTopic = '/atinetft/raw_wrench')
+    ContinuousPalpation(psmName = 'PSM2', forceTopic = '/dvrk/PSM2/wrench')

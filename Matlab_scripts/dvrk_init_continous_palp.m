@@ -3,6 +3,7 @@ function dvrk_init_continous_palp()
 try
     rosshutdown();
 catch
+    warning('shutdown failure')
 end
 
 %% dvrk Init
@@ -14,4 +15,7 @@ catch
 end
 %%  set directory for palpation folder
 setenv('CONT_PALP_DIR',fileparts(fileparts(mfilename('fullpath'))));
+
+addpath(genpath(getenv('CONT_PALP_DIR')));
+addpath(genpath(getenv('ARMA_CL')));
 end

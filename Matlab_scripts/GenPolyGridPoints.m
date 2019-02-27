@@ -46,16 +46,15 @@ interval_y = lower_y:inc_y:higher_y;
 if scanningDirXMajor % in X direction
     bigGridX = bigGridX';
     bigGridY = bigGridY';
-
+    
     if strcmp(scanMode,'raster')
         bigGridX(:,1:2:end) = flip(bigGridX(:,1:2:end),1);
     end
-else % in Y direction
+else %in Y direction
     if strcmp(scanMode,'raster')
         bigGridY(:,1:2:end) = flip(bigGridY(:,1:2:end),1);
     end
 end
-
 %   Filter grid to get only points in polygon
 in = inpolygon(bigGridX(:), bigGridY(:), xv, yv);
 %   Return the co-ordinates of the points that are in the polygon

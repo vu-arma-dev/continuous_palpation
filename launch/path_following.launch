@@ -1,0 +1,35 @@
+<launch>
+  <!-- Set up Arguments -->
+  <arg name="arm" default="PSM2" />
+  <arg name="IP" default="192.168.1.145" />
+  <arg name="filename" default="micronRobReg" />
+
+<!-- Publishing MicronTracker Incoming Data -->
+<node name ="micron_publisher"
+    pkg="armalib"
+    type="basic_udp_example"
+    output = "screen" />
+
+<!-- Run dVRK -->
+  <node name="dvrk_jconsole"
+  		pkg="dvrk_robot" 
+  		type="dvrk_console_json" 
+	  	args="-j $(find saw_intuitive_research_kit)/../share/vu-dVRK/console-$(arg arm)_VU.json"
+	  	output="screen"/>
+
+ <!-- Run Continuous Palpation python code (requires MATLAB to start trajectory) -->
+  <node name = "rob_follow"
+        pkg = "continuous_palpation"
+        type= "basic_robot_following.py"
+        output="screen"/>
+
+<!-- Record the data into a rosbag -->
+  <node name = "recorder"
+        pkg = "dvrk_nri_robot"
+        type= "rosbag_record.py"
+        args= "path $(arg filename)"
+        output = "screen"/>
+
+
+
+</launch>

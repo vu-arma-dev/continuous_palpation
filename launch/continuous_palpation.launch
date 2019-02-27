@@ -16,10 +16,34 @@
         type = "atinetft_xml"
         args = "-c $(find saw_ati_force_sensor)/../examples/FT15360Net.xml -i $(arg IP)" />
         
+  <!-- Remap force sensor topic -->
+  <node name = "mrelay"
+        pkg  = "topic_tools"
+        type = "relay"
+        args = "/atinetft/raw_wrench /dvrk/$(arg arm)/wrench" />
+
 <!-- Run Continuous Palpation python code (requires MATLAB to start trajectory) -->
   <node name = "cont_palp"
         pkg = "continuous_palpation"
         type= "continuous_palpation.py"
         output="screen"/>
+
+
+  <!-- Run online GP -->
+  <node name = "gponline"
+        pkg  = "csa_ros_applications"
+        type = "gp_online"
+        args = "-p $(arg arm)" />
+
+
+<!-- Can record video too if you want... -->
+<!--   <include file="$(find dvrk_vision)/launch/just_cams.launch" /> -->
+  <node name = "recorder"
+        pkg = "dvrk_nri_robot"
+        type= "rosbag_record.py"
+        args= "continuous"/>
+
+
+
 
 </launch>

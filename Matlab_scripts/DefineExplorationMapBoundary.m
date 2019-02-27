@@ -59,9 +59,10 @@ if SaveResult==1
     MapRefCorners(idx:end,:) =[];
     Config_mat_path = ...
         [getenv('CONT_PALP_DIR'),filesep,...
-        'GenPath',filesep,'Config_Mat'];
+        'Matlab_scripts',filesep,'Config_Mat'];
     save([Config_mat_path,'/',MapName],'MapRefCorners','MapRefHeights');
-    GenRasterScanPath(MapName,'path name',[MapName,'Raster']);
+    GenRasterScanPath('input mat',MapName,'path name',[Config_mat_path,filesep,MapName,'Raster'],...
+        'xMajor',1);
 end
 end
 
