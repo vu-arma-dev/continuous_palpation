@@ -66,3 +66,23 @@ rosbag record --split --duration=4m -e '(?!/stereo).*|/stereo/right/image_rect|/
 ```
 * In MATLAB, run Main_RAL_Continuous_Palpation
 	* Make sure to set RasterTrajName to whatever mat file you collected above for the trajectory boundary
+
+## GP Results from Data ##
+
+Continuous palpation - Seeing GP result from txt file (deprecated, but sometimes useful)
+follow instructions to save data
+save bags to a folder
+edit "process_bags_for_GP.py" to set the folder, bagname, and output filename
+cp outputname.txt current_GP_result.txt
+Then change the file dvrk_nri_robot on lines 150-151 to use FILE_STREAMING
+catkin build
+roslaunch dvrk_nri_robot dvrk_nri_teleop_vu.launch
+rostopic pub /dvrk/GP/set_GP_running std_msgs/Booldata: true" 
+Run preetham's MATLAB visualizer in matlab
+/home/arma/catkin_ws/src/cisst-saw-nri/nri/sawNRIModelFW/matlab/ral 
+ral_demo_online.m
+You can change the GP parameters in 
+cisst-saw-nri/nri/sawNRIModelFW/components/code/GP.cpp
+ScaleFactor
+LengthScale
+ 
